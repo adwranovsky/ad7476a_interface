@@ -1,0 +1,28 @@
+[tasks]
+bmc
+prove
+cover
+
+[options]
+bmc:
+mode bmc
+depth 10
+
+prove:
+mode prove
+depth 10
+
+cover:
+mode cover
+depth 200
+--
+
+[engines]
+smtbmc
+
+[script]
+read -formal timer.v
+prep -top timer
+
+[files]
+../src/adwranovsky__timer_0.1/rtl/timer.v

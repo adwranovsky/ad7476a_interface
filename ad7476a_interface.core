@@ -1,0 +1,55 @@
+CAPI=2:
+
+name: adwranovsky::ad7476a_interface:0.1
+
+filesets:
+    rtl:
+        depend:
+            - ">=adwranovsky__timer-0.1"
+            - ">=adwranovsky__shift_register-0.1"
+        files:
+            - rtl/ad7476a_interface.v
+        file_type: systemVerilogSource
+    formal:
+        files:
+            - ad7476a_interface.sby
+        file_type: sbyConfigTemplate
+
+targets:
+    default:
+        filesets: [rtl]
+    lint:
+        default_tool: verilator
+        filesets: [rtl]
+        toplevel: ad7476a_interface
+        tools:
+            verilator:
+                mode: "lint-only"
+    quick_synth:
+        default_tool: yosys
+        filesets: [rtl]
+        toplevel: ad7476a_interface
+        tools:
+            yosys:
+                arch: xilinx
+    bmc:
+        default_tool: symbiyosys
+        filesets: [rtl, formal]
+        toplevel: ad7476a_interface
+        tools:
+            symbiyosys:
+                tasknames: [bmc]
+    prove:
+        default_tool: symbiyosys
+        filesets: [rtl, formal]
+        toplevel: ad7476a_interface
+        tools:
+            symbiyosys:
+                tasknames: [prove]
+    cover:
+        default_tool: symbiyosys
+        filesets: [rtl, formal]
+        toplevel: ad7476a_interface
+        tools:
+            symbiyosys:
+                tasknames: [cover]
