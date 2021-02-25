@@ -1,7 +1,7 @@
 `default_nettype none
 
 module ad7476a_interface #(
-    parameter CLK_FREQ_HZ,
+    parameter CLK_FREQ_HZ = 100000000,
     parameter SCLK_FREQ_HZ = 20000000
 ) (
     input wire clk_i,
@@ -10,7 +10,7 @@ module ad7476a_interface #(
     // FPGA interface
     input  wire request_i,
     output wire [11:0] data_o,
-    output wire data_valid_o
+    output reg  data_valid_o,
 
     // SPI interface
     output wire sclk_o,
@@ -29,9 +29,9 @@ module ad7476a_interface #(
     // The number of system clocks per SPI clock
     localparam CLK_DIV = CLK_FREQ_HZ / SCLK_FREQ_HZ;
     // The minimum number of system clocks it takes to satisfy t2 from the datasheet
-    localparam T2 = $ceil(CLK_FREQ_HZ * 10e-9);
+    localparam T2 = $rtoi($ceil(CLK_FREQ_HZ * 10e-9));
     // The minimum number of system clocks it takes to satisfy t8+tquiet from the datasheet
-    localparam T8_PLUS_TQUIET = $ceil(CLK_FREQ_HZ * 86e-9);
+    localparam T8_PLUS_TQUIET = $rtoi($ceil(CLK_FREQ_HZ * 86e-9));
 
 
     /*
@@ -42,7 +42,7 @@ module ad7476a_interface #(
     reg timer_done;
     reg [TIMER_WIDTH-1:0] timer_count;
     timer #(
-        WIDTH = TIMER_WIDTH
+        .WIDTH(TIMER_WIDTH)
     ) spi_timer (
         .clk_i(clk_i),
         .rst_i(rst_i),
@@ -56,8 +56,8 @@ module ad7476a_interface #(
      */
     reg enable_sclk;
     clkdiv #(
-        DIV = CLK_DIV,
-        IDLE_HIGH = 1
+        .DIV(CLK_DIV),
+        .IDLE_HIGH(1)
     ) sclk_generator (
         .clk_i(clk_i),
         .enable_i(enable_sclk),
@@ -69,20 +69,20 @@ module ad7476a_interface #(
      */
     reg last_sclk = 1;
     always @(posedge clk_i)
-        last_sclk <= sclk_o
+        last_sclk <= sclk_o;
     wire sclk_rising_edge  = sclk_o && !last_sclk;
     wire sclk_falling_edge = !sclk_o && last_sclk;
 
     /*
      * Count 16 sclk_o falling edges
      */
-    reg [2:0] sclk_falling_edge_counter = 0;
+    reg [2:0] num_sclk_falling_edges = 0;
     reg got_16_sclk_falling_edges = 0;
     always @(posedge clk_i)
         if (rst_i)
             {got_16_sclk_falling_edges, num_sclk_falling_edges} <= 0;
         else
-            {got_16_sclk_falling_edges, num_sclk_falling_edges} <= num_sclk_falling_edges + sclk_falling_edge;
+            {got_16_sclk_falling_edges, num_sclk_falling_edges} <= {1'b0,num_sclk_falling_edges} + {3'b0,sclk_falling_edge};
 
     /*
      * Create a shift register for reading in SPI data and converting it to parallel
@@ -90,7 +90,7 @@ module ad7476a_interface #(
     localparam SPI_DATA_BITS = 16;
     wire [SPI_DATA_BITS-1:0] spi_parallel_out;
     shift_register #(
-        WIDTH = SPI_DATA_BITS
+        .WIDTH(SPI_DATA_BITS)
     ) spi_serial_in_parallel_out (
         .clk_i(clk_i),
         .rst_i(rst_i),
@@ -103,12 +103,12 @@ module ad7476a_interface #(
      * Sampling state machine
      */
     localparam
-        WAIT          = 5'b00001,
-        CHIP_SELECT   = 5'b00010,
-        READ_SAMPLE   = 5'b00100,
-        BE_QUIET      = 5'b01000,
-        SAMPLE_STROBE = 5'b10000;
-    reg [4:0] state, next_state;
+        WAIT          = 3'h0,
+        CHIP_SELECT   = 3'h1,
+        READ_SAMPLE   = 3'h2,
+        BE_QUIET      = 3'h3,
+        SAMPLE_STROBE = 3'h4;
+    reg [2:0] state, next_state;
 
     // State register
     initial state = WAIT;
@@ -147,18 +147,32 @@ module ad7476a_interface #(
     // State outputs
     always @(*) begin
         cs_n_o = 1;
+        data_valid_o = 0;
         enable_sclk = 0;
         start_timer = 0;
-        timer_count = T2;
+        timer_count = T2[TIMER_WIDTH-1:0];
         /* verilator lint_off CASEINCOMPLETE */
         case (state)
-            WAIT:
+            WAIT: begin
                 start_timer = request_i; // TODO: finish this
-            CHIP_SELECT:
+            end
+            CHIP_SELECT: begin
                 cs_n_o = 0;
-            READ_SAMPLE:
-            BE_QUIET:
-            SAMPLE_STROBE:
+                enable_sclk = timer_done;
+            end
+            READ_SAMPLE: begin
+                timer_count = T8_PLUS_TQUIET[TIMER_WIDTH-1:0];
+                start_timer = got_16_sclk_falling_edges;
+                cs_n_o = 0;
+                enable_sclk = 1;
+            end
+            BE_QUIET: begin
+                // all outputs are the default
+            end
+            SAMPLE_STROBE: begin
+                data_valid_o = 1;
+                start_timer = request_i;
+            end
         endcase
         /* verilator lint_on CASEINCOMPLETE */
     end
@@ -169,6 +183,20 @@ module ad7476a_interface #(
     reg f_past_valid = 0;
     always @(posedge clk_i)
         f_past_valid <= 1;
+
+    // Verify that we're always in a valid state
+    always @(*)
+        assert(
+            state == WAIT ||
+            state == CHIP_SELECT ||
+            state == READ_SAMPLE ||
+            state == BE_QUIET ||
+            state == SAMPLE_STROBE
+        );
+
+    // Verify that data_valid_o is only strobed if 16 falling edges happened
+
+    // Verify that data_o matches the data bits received on sdata_i when data_valid_o is strobed
 `endif
 
 endmodule
