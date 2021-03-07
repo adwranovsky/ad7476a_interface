@@ -77,7 +77,7 @@ module ad7476a_interface #(
     /*
      * Count 16 sclk_o falling edges
      */
-    reg [2:0] num_sclk_falling_edges = 0;
+    reg [3:0] num_sclk_falling_edges = 0;
     reg got_16_sclk_falling_edges = 0;
     always @(posedge clk_i)
         if (rst_i)
@@ -185,6 +185,11 @@ module ad7476a_interface #(
     reg f_past_valid = 0;
     always @(posedge clk_i)
         f_past_valid <= 1;
+
+    // Start BMC and cover with a reset
+    always @(posedge clk_i)
+        if (!f_past_valid)
+            assume(rst_i);
 
     // Count the number of falling edges, resetting on data_valid_o
     integer f_falling_edge_counter = 0;
