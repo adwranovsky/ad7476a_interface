@@ -21,8 +21,15 @@ depth 200
 smtbmc
 
 [script]
+read -formal shift_register.v
 read -formal timer.v
-prep -top timer
+read -formal clkdiv.v
+read -formal ad7476a_interface.v
+chparam -set COVER 1 ad7476a_interface
+prep -top ad7476a_interface
 
 [files]
-../src/adwranovsky__timer_0.1/rtl/timer.v
+../src/adwranovsky__ad7476a_interface_0.1/rtl/ad7476a_interface.v
+../src/adwranovsky__shift_register_0.2/rtl/shift_register.v
+../src/adwranovsky__timer_0.2/rtl/timer.v
+../src/adwranovsky__clkdiv_0.2/rtl/clkdiv.v

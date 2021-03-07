@@ -5,9 +5,9 @@ name: adwranovsky::ad7476a_interface:0.1
 filesets:
     rtl:
         depend:
-            - ">=adwranovsky__timer-0.1"
-            - ">=adwranovsky__shift_register-0.1"
-            - ">=adwranovsky__clkdiv-0.1"
+            - ">=adwranovsky__timer-0.2"
+            - ">=adwranovsky__shift_register-0.2"
+            - ">=adwranovsky__clkdiv-0.2"
         files:
             - rtl/ad7476a_interface.v
         file_type: systemVerilogSource

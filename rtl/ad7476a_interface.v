@@ -2,7 +2,8 @@
 
 module ad7476a_interface #(
     parameter CLK_FREQ_HZ = 100000000,
-    parameter SCLK_FREQ_HZ = 20000000
+    parameter SCLK_FREQ_HZ = 20000000,
+    parameter COVER = 0
 ) (
     input wire clk_i,
     input wire rst_i,
@@ -184,6 +185,11 @@ module ad7476a_interface #(
     always @(posedge clk_i)
         f_past_valid <= 1;
 
+    // Assume that the data input is synchronous to the clock output and only changes on the falling edge
+    always @(posedge clk_i)
+        if (f_past_valid && $changed(sdata_i))
+            assume($fell(sclk_o));
+
     // Verify that we're always in a valid state
     always @(*)
         assert(
@@ -197,6 +203,12 @@ module ad7476a_interface #(
     // Verify that data_valid_o is only strobed if 16 falling edges happened
 
     // Verify that data_o matches the data bits received on sdata_i when data_valid_o is strobed
+
+    // Generate a simple test bench that does one read
+    generate if (COVER==1) begin
+        always @(*)
+            cover(data_valid_o && data_o==12'hba5);
+    end endgenerate
 `endif
 
 endmodule
