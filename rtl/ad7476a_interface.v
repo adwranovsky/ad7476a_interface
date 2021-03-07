@@ -245,6 +245,19 @@ module ad7476a_interface #(
         always @(*)
             cover(data_valid_o && data_o==12'hba5);
     end endgenerate
+
+    // Ensure that the number of falling edges recorded remains consistent during the inductive proof
+    always @(*) begin
+        if (state==CHIP_SELECT || state==WAIT || state==RESET) begin
+            assert(got_16_sclk_falling_edges==0);
+            assert(f_falling_edge_counter == 32'd0);
+        end
+        if (state==READ_SAMPLE && !rst_i) begin
+            assert(f_falling_edge_count <= 32'd16);
+            assert(f_falling_edge_counter[4] == got_16_sclk_falling_edges);
+        end
+        assert(f_falling_edge_counter[3:0] == num_sclk_falling_edges);
+    end
 `endif
 
 endmodule

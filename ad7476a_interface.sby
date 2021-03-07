@@ -10,7 +10,7 @@ depth 100
 
 prove:
 mode prove
-depth 10
+depth 40
 
 cover:
 mode cover
