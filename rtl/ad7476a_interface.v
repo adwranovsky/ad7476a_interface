@@ -88,7 +88,7 @@ module ad7476a_interface #(
     /*
      * Create a shift register for reading in SPI data and converting it to parallel
      */
-    localparam SPI_DATA_BITS = 16;
+    localparam SPI_DATA_BITS = $bits(data_o) + 1;
     wire [SPI_DATA_BITS-1:0] spi_parallel_out;
     shift_register #(
         .WIDTH(SPI_DATA_BITS)
@@ -99,6 +99,7 @@ module ad7476a_interface #(
         .bit_i(sdata_i),
         .value_o(spi_parallel_out)
     );
+    assign data_o = spi_parallel_out[1 +: $bits(data_o)];
 
     /*
      * Sampling state machine
