@@ -109,14 +109,15 @@ module ad7476a_interface #(
         CHIP_SELECT   = 3'h1,
         READ_SAMPLE   = 3'h2,
         BE_QUIET      = 3'h3,
-        SAMPLE_STROBE = 3'h4;
+        SAMPLE_STROBE = 3'h4,
+        RESET         = 3'h5;
     reg [2:0] state, next_state;
 
     // State register
-    initial state = WAIT;
+    initial state = RESET;
     always @(posedge clk_i)
         if (rst_i)
-            state <= WAIT;
+            state <= RESET;
         else
             state <= next_state;
 
@@ -125,6 +126,9 @@ module ad7476a_interface #(
         next_state = state;
         /* verilator lint_off CASEINCOMPLETE */
         case (state)
+            RESET:
+                if (sclk_o)
+                    next_state = WAIT;
             WAIT:
                 if (request_i)
                     next_state = CHIP_SELECT;
@@ -155,6 +159,9 @@ module ad7476a_interface #(
         timer_count = T2[TIMER_WIDTH-1:0];
         /* verilator lint_off CASEINCOMPLETE */
         case (state)
+            RESET: begin
+                // all outputs are the default
+            end
             WAIT: begin
                 start_timer = request_i; // TODO: finish this
             end
@@ -191,14 +198,15 @@ module ad7476a_interface #(
         if (!f_past_valid)
             assume(rst_i);
 
-    // Count the number of falling edges, resetting on data_valid_o
+    // Count the number of falling edges, resetting on data_valid_o or a reset
     integer f_falling_edge_counter = 0;
     always @(posedge clk_i)
-        if (data_valid_o)
+        if (rst_i || data_valid_o)
             f_falling_edge_counter <= 0;
+        else if (f_past_valid && $fell(sclk_o))
+            f_falling_edge_counter <= f_falling_edge_counter + 1;
         else
-            if (f_past_valid && $fell(sclk_o))
-                f_falling_edge_counter <= f_falling_edge_counter + 1;
+            f_falling_edge_counter <= f_falling_edge_counter;
 
     // Assume that the data input is synchronous to the clock output and only changes on the falling edge
     always @(posedge clk_i)
@@ -208,6 +216,7 @@ module ad7476a_interface #(
     // Verify that we're always in a valid state
     always @(*)
         assert(
+            state == RESET ||
             state == WAIT ||
             state == CHIP_SELECT ||
             state == READ_SAMPLE ||
@@ -222,7 +231,7 @@ module ad7476a_interface #(
 
     // Verify that data_o matches the data bits received on sdata_i when data_valid_o is strobed
 
-    // Generate a simple test bench that does one read
+    // Generate a simple test bench that does one read and gets 0xba5 back
     generate if (COVER==1) begin
         always @(*)
             cover(data_valid_o && data_o==12'hba5);
