@@ -208,6 +208,12 @@ module ad7476a_interface #(
         else
             f_falling_edge_counter <= f_falling_edge_counter;
 
+    // Keep track of the last 13 data bits read clocked in on sdata_i
+    reg [12:0] f_last_data_word;
+    always @(posedge clk_i)
+        if (f_past_valid && $rose(sclk_o))
+            f_last_data_word <= {f_last_data_word[11:0], sdata_i};
+
     // Assume that the data input is synchronous to the clock output and only changes on the falling edge
     always @(posedge clk_i)
         if (f_past_valid && $changed(sdata_i))
@@ -230,6 +236,9 @@ module ad7476a_interface #(
             assert(f_falling_edge_counter == 16);
 
     // Verify that data_o matches the data bits received on sdata_i when data_valid_o is strobed
+    always @(*)
+        if (data_valid_o)
+            assert(f_last_data_word[12:1] == data_o);
 
     // Generate a simple test bench that does one read and gets 0xba5 back
     generate if (COVER==1) begin
