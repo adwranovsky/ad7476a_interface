@@ -186,6 +186,15 @@ module ad7476a_interface #(
     always @(posedge clk_i)
         f_past_valid <= 1;
 
+    // Count the number of falling edges, resetting on data_valid_o
+    integer f_falling_edge_counter = 0;
+    always @(posedge clk_i)
+        if (data_valid_o)
+            f_falling_edge_counter <= 0;
+        else
+            if (f_past_valid && $fell(sclk_o))
+                f_falling_edge_counter <= f_falling_edge_counter + 1;
+
     // Assume that the data input is synchronous to the clock output and only changes on the falling edge
     always @(posedge clk_i)
         if (f_past_valid && $changed(sdata_i))
@@ -202,6 +211,9 @@ module ad7476a_interface #(
         );
 
     // Verify that data_valid_o is only strobed if 16 falling edges happened
+    always @(*)
+        if (data_valid_o)
+            assert(f_falling_edge_counter == 16);
 
     // Verify that data_o matches the data bits received on sdata_i when data_valid_o is strobed
 
