@@ -6,11 +6,7 @@ cover
 [options]
 bmc:
 mode bmc
-depth 100
-
-prove:
-mode prove
-depth 40
+depth 200
 
 cover:
 mode cover

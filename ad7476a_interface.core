@@ -40,13 +40,6 @@ targets:
         tools:
             symbiyosys:
                 tasknames: [bmc]
-    prove:
-        default_tool: symbiyosys
-        filesets: [rtl, formal]
-        toplevel: ad7476a_interface
-        tools:
-            symbiyosys:
-                tasknames: [prove]
     cover:
         default_tool: symbiyosys
         filesets: [rtl, formal]
