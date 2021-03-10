@@ -3,6 +3,7 @@
 module ad7476a_interface #(
     parameter CLK_FREQ_HZ = 100000000,
     parameter SCLK_FREQ_HZ = 20000000,
+    parameter NUM_DEVICES = 1,
     parameter COVER = 0
 ) (
     input wire clk_i,
@@ -10,13 +11,13 @@ module ad7476a_interface #(
 
     // FPGA interface
     input  wire request_i,
-    output wire [11:0] data_o,
+    output wire [12*NUM_DEVICES-1:0] data_o,
     output reg  data_valid_o,
 
     // SPI interface
     output wire sclk_o,
     output reg  cs_n_o,
-    input  wire sdata_i
+    input  wire [NUM_DEVICES-1:0] sdata_i
 );
     // Try to force an elaboration failure if invalid parameters were specified
     generate if (SCLK_FREQ_HZ > 20000000)
@@ -24,6 +25,9 @@ module ad7476a_interface #(
     endgenerate
     generate if (SCLK_FREQ_HZ > CLK_FREQ_HZ)
         invalid_verilog_parameter CLK_FREQ_HZ_must_be_larger_than_SCLK_FREQ_HZ ();
+    endgenerate
+    generate if (NUM_DEVICES <= 0)
+        invalid_verilog_parameter NUM_DEVICES_must_be_a_positive_integer ();
     endgenerate
 
 
@@ -86,20 +90,24 @@ module ad7476a_interface #(
             {got_16_sclk_falling_edges, num_sclk_falling_edges} <= {1'b0,num_sclk_falling_edges} + {3'b0,sclk_falling_edge};
 
     /*
-     * Create a shift register for reading in SPI data and converting it to parallel
+     * Create a shift register for each device for reading in SPI data and converting it to parallel
      */
-    localparam SPI_DATA_BITS = $bits(data_o) + 1;
-    wire [SPI_DATA_BITS-1:0] spi_parallel_out;
-    shift_register #(
-        .WIDTH(SPI_DATA_BITS)
-    ) spi_serial_in_parallel_out (
-        .clk_i(clk_i),
-        .rst_i(rst_i),
-        .advance_i(sclk_rising_edge),
-        .bit_i(sdata_i),
-        .value_o(spi_parallel_out)
-    );
-    assign data_o = spi_parallel_out[1 +: $bits(data_o)];
+    localparam SAMPLE_WIDTH = 12;
+    localparam SHIFT_REGISTER_WIDTH = SAMPLE_WIDTH + 1; // add one to account for sclk_o's return to idle
+    genvar i;
+    generate for (i = 0; i < NUM_DEVICES; i = i+1) begin
+        wire [SHIFT_REGISTER_WIDTH-1:0] spi_parallel_out;
+        shift_register #(
+            .WIDTH(SHIFT_REGISTER_WIDTH)
+        ) spi_serial_in_parallel_out (
+            .clk_i(clk_i),
+            .rst_i(rst_i),
+            .advance_i(sclk_rising_edge),
+            .bit_i(sdata_i[i]),
+            .value_o(spi_parallel_out)
+        );
+        assign data_o[SAMPLE_WIDTH*i +: SAMPLE_WIDTH] = spi_parallel_out[1 +: SAMPLE_WIDTH];
+    end endgenerate
 
     /*
      * Sampling state machine
