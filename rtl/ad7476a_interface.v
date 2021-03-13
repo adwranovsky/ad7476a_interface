@@ -4,14 +4,15 @@ module ad7476a_interface #(
     parameter CLK_FREQ_HZ = 100000000,
     parameter SCLK_FREQ_HZ = 20000000,
     parameter NUM_DEVICES = 1,
-    parameter COVER = 0
+    parameter COVER = 0,
+    localparam SAMPLE_WIDTH = 12
 ) (
     input wire clk_i,
     input wire rst_i,
 
     // FPGA interface
     input  wire request_i,
-    output wire [12*NUM_DEVICES-1:0] data_o,
+    output wire [SAMPLE_WIDTH*NUM_DEVICES-1:0] data_o,
     output reg  data_valid_o,
 
     // SPI interface
@@ -92,7 +93,6 @@ module ad7476a_interface #(
     /*
      * Create a shift register for each device for reading in SPI data and converting it to parallel
      */
-    localparam SAMPLE_WIDTH = 12;
     localparam SHIFT_REGISTER_WIDTH = SAMPLE_WIDTH + 1; // add one to account for sclk_o's return to idle
     genvar i;
     generate for (i = 0; i < NUM_DEVICES; i = i+1) begin
@@ -196,6 +196,8 @@ module ad7476a_interface #(
 
 
 `ifdef FORMAL
+    genvar f;
+
     // Keep track of whether or not $past() is valid
     reg f_past_valid = 0;
     always @(posedge clk_i)
@@ -217,10 +219,12 @@ module ad7476a_interface #(
             f_falling_edge_counter <= f_falling_edge_counter;
 
     // Keep track of the last 13 data bits read clocked in on sdata_i
-    reg [12:0] f_last_data_word;
-    always @(posedge clk_i)
-        if (f_past_valid && $rose(sclk_o))
-            f_last_data_word <= {f_last_data_word[11:0], sdata_i};
+    reg [SAMPLE_WIDTH:0] f_last_data_word [0:NUM_DEVICES];
+    generate for (f = 0; f < NUM_DEVICES; f = f+1) begin
+        always @(posedge clk_i)
+            if (f_past_valid && $rose(sclk_o))
+                f_last_data_word[f] <= {f_last_data_word[f][SAMPLE_WIDTH-1:0], sdata_i[f]};
+    end endgenerate
 
     // Assume that the data input is synchronous to the clock output and only changes on the falling edge
     always @(posedge clk_i)
@@ -238,20 +242,24 @@ module ad7476a_interface #(
             state == SAMPLE_STROBE
         );
 
-    // Verify that data_valid_o is only strobed if 16 falling edges happened
+    // Verify that data_valid_o is only strobed if 16 falling edges happened. The first falling edge is the clock
+    // leaving the idle state, and then the next 3 are dummy bits that the device sends out while making the conversion.
+    // The last 12 are the actual sample
     always @(*)
         if (data_valid_o)
-            assert(f_falling_edge_counter == 16);
+            assert(f_falling_edge_counter == SAMPLE_WIDTH+4);
 
     // Verify that data_o matches the data bits received on sdata_i when data_valid_o is strobed
-    always @(*)
-        if (data_valid_o)
-            assert(f_last_data_word[12:1] == data_o);
+    generate for (f = 0; f < NUM_DEVICES; f = f+1)
+        always @(*)
+            if (data_valid_o)
+                assert(f_last_data_word[f][SAMPLE_WIDTH:1] == data_o[SAMPLE_WIDTH*f +: SAMPLE_WIDTH]);
+    endgenerate
 
-    // Generate a simple test bench that does one read and gets 0xba5 back
+    // Generate a simple test bench that does one read and gets 0xba5 back on each device
     generate if (COVER==1) begin
         always @(*)
-            cover(data_valid_o && data_o==12'hba5);
+            cover(data_valid_o && data_o=={NUM_DEVICES{12'hba5}});
     end endgenerate
 
 `endif

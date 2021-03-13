@@ -1,14 +1,15 @@
 [tasks]
-bmc
-prove
-cover
+bmc all_bmc
+cover all_cover
+bmc2 all_bmc two_devices
+cover2 all_cover two_devices
 
 [options]
-bmc:
+all_bmc:
 mode bmc
 depth 200
 
-cover:
+all_cover:
 mode cover
 depth 200
 --
@@ -22,6 +23,11 @@ read -formal timer.v
 read -formal clkdiv.v
 read -formal ad7476a_interface.v
 chparam -set COVER 1 ad7476a_interface
+
+two_devices:
+chparam -set NUM_DEVICES 2 ad7476a_interface
+--
+
 prep -top ad7476a_interface
 
 [files]

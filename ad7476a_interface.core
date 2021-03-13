@@ -40,6 +40,13 @@ targets:
         tools:
             symbiyosys:
                 tasknames: [bmc]
+    bmc2:
+        default_tool: symbiyosys
+        filesets: [rtl, formal]
+        toplevel: ad7476a_interface
+        tools:
+            symbiyosys:
+                tasknames: [bmc2]
     cover:
         default_tool: symbiyosys
         filesets: [rtl, formal]
@@ -47,3 +54,10 @@ targets:
         tools:
             symbiyosys:
                 tasknames: [cover]
+    cover2:
+        default_tool: symbiyosys
+        filesets: [rtl, formal]
+        toplevel: ad7476a_interface
+        tools:
+            symbiyosys:
+                tasknames: [cover2]
